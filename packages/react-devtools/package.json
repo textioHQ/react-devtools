@@ -1,5 +1,5 @@
 {
-  "name": "react-devtools",
+  "name": "@textio/react-devtools",
   "version": "3.4.2",
   "description": "Use react-devtools outside of the browser",
   "repository": {
