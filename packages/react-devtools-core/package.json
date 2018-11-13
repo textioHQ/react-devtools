@@ -1,6 +1,6 @@
 {
   "name": "@textio/react-devtools-core",
-  "version": "3.4.2",
+  "version": "3.4.6",
   "description": "Use react-devtools outside of the browser",
   "main": "./build/backend.js",
   "repository": {
