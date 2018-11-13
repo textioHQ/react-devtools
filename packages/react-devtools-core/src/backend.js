@@ -16,21 +16,22 @@ type ConnectOptions = {
   resolveRNStyle?: (style: number) => ?Object,
   isAppActive?: () => boolean,
   websocket?: ?WebSocket,
+  websocketProtocol?: string,
 };
 
 var Agent = require('../../../agent/Agent');
 var Bridge = require('../../../agent/Bridge');
 var ProfileCollector = require('../../../plugins/Profiler/ProfileCollector');
 var installGlobalHook = require('../../../backend/installGlobalHook');
-var installRelayHook = require('../../../plugins/Relay/installRelayHook');
 var inject = require('../../../agent/inject');
 var invariant = require('assert');
 var setupRNStyle = require('../../../plugins/ReactNativeStyle/setupBackend');
 var setupProfiler = require('../../../plugins/Profiler/backend');
-var setupRelay = require('../../../plugins/Relay/backend');
+var Replicator = require('replicator');
 
 installGlobalHook(window);
-installRelayHook(window);
+
+var replicator = new Replicator();
 
 if (window.document) {
   // This shell is universal, and might be used inside a web app.
@@ -49,6 +50,7 @@ function connectToDevTools(options: ?ConnectOptions) {
     websocket,
     resolveRNStyle = null,
     isAppActive = () => true,
+    websocketProtocol = 'ws',
   } = options || {};
 
   function scheduleRetry() {
@@ -65,7 +67,7 @@ function connectToDevTools(options: ?ConnectOptions) {
 
   var messageListeners = [];
   var closeListeners = [];
-  var uri = 'ws://' + host + ':' + port;
+  var uri = websocketProtocol + '://' + host + ':' + port;
   // If existing websocket is passed, use it.
   // This is necessary to support our custom integrations.
   // See D6251744.
@@ -82,7 +84,7 @@ function connectToDevTools(options: ?ConnectOptions) {
         closeListeners.push(fn);
       },
       send(data) {
-        ws.send(JSON.stringify(data));
+        ws.send(replicator.encode(data));
       },
     };
     setupBackend(wall, resolveRNStyle);
@@ -127,7 +129,7 @@ function setupBackend(wall, resolveRNStyle) {
     if (agent) {
       agent.emit('shutdown');
     }
-    // This appears necessary for plugin (e.g. Relay) cleanup.
+    // This appears necessary for plugin cleanup.
     window.__REACT_DEVTOOLS_GLOBAL_HOOK__.emit('shutdown');
     bridge = null;
     agent = null;
@@ -146,7 +148,6 @@ function setupBackend(wall, resolveRNStyle) {
   }
 
   setupProfiler(bridge, agent, window.__REACT_DEVTOOLS_GLOBAL_HOOK__);
-  setupRelay(bridge, agent, window.__REACT_DEVTOOLS_GLOBAL_HOOK__);
 
   var _connectTimeout = setTimeout(() => {
     console.warn('react-devtools agent got no connection');
