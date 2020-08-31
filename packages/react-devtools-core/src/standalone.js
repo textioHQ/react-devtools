@@ -19,12 +19,15 @@ var Panel = require('../../../frontend/Panel');
 var launchEditor = require('./launchEditor');
 var React = require('react');
 var ReactDOM = require('react-dom');
+var { CONNECTION_REPLACED } = require('./backend');
+var Replicator = require('replicator');
 
 var node = null;
 var onStatusChange = function noop() {};
 var projectRoots = [];
 var wall = null;
 var panel = null;
+var replicator = new Replicator();
 
 var config = {
   reload,
@@ -72,7 +75,7 @@ function onError(e) {
 function initialize(socket) {
   var listeners = [];
   socket.onmessage = (evt) => {
-    var data = JSON.parse(evt.data);
+    var data = replicator.decode(evt.data);
     listeners.forEach((fn) => fn(data));
   };
 
@@ -114,13 +117,14 @@ function connectToSocket(socket) {
   };
 }
 
+var WS_DEFAULT_CLOSE_CODE = 1000;
 function startServer(port = 8097) {
   var httpServer = require('http').createServer();
   var server = new ws.Server({server: httpServer});
   var connected = false;
   server.on('connection', (socket) => {
     if (connected) {
-      connected.close();
+      connected.close(WS_DEFAULT_CLOSE_CODE, CONNECTION_REPLACED);
       log.warn(
         'Only one connection allowed at a time.',
         'Closing the previous connection'
@@ -132,10 +136,12 @@ function startServer(port = 8097) {
       onDisconnected();
       log.error('Error with websocket connection', err);
     };
-    socket.onclose = () => {
-      connected = false;
-      onDisconnected();
-      log('Connection to RN closed');
+    socket.onclose = (ev) => {
+      if (ev.reason !== CONNECTION_REPLACED) {
+        connected = false;
+        onDisconnected();
+        log('Connection to RN closed');
+      }
     };
     initialize(socket);
   });
@@ -151,7 +157,16 @@ function startServer(port = 8097) {
     var backendFile = fs.readFileSync(
       path.join(__dirname, '../build/backend.js')
     );
-    res.end(backendFile + '\n;ReactDevToolsBackend.connectToDevTools();');
+    var devToolsConfig = {
+      host: process.env.REACT_DEVTOOLS_HOST,
+      port: process.env.REACT_DEVTOOLS_WS_PORT,
+      websocketProtocol: process.env.REACT_DEVTOOLS_WS_PROTOCOL,
+    };
+    var backendFileWithInit = backendFile +
+      '\n;ReactDevToolsBackend.connectToDevTools(' +
+      JSON.stringify(devToolsConfig) +
+      ');';
+    res.end(backendFileWithInit);
   });
 
   httpServer.on('error', (e) => {

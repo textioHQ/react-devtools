@@ -1,6 +1,6 @@
 {
-  "name": "react-devtools",
-  "version": "3.4.2",
+  "name": "@textio/react-devtools",
+  "version": "3.4.6",
   "description": "Use react-devtools outside of the browser",
   "repository": {
     "url": "https://github.com/facebook/react-devtools.git",
